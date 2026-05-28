@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  role      UserRole @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentProfile StudentProfile?
+  teacherProfile TeacherProfile?
+  subscriptions  Subscription[]
+  accounts       Account[]
+  sessions       Session[]
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model StudentProfile {
+  id                 String        @id @default(cuid())
+  userId             String        @unique
+  gradeLevel         String
+  subscriptionEndsAt DateTime?
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings           ClassBooking[]
+}
+
+model TeacherProfile {
+  id                 String         @id @default(cuid())
+  userId             String         @unique
+  subject            String
+  hourlyRate         Float          @default(10000)
+  bio                String?
+  verificationStatus String         @default("PENDING")
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  classes            VirtualClass[]
+}
+
+model Course {
+  id          String  @id @default(cuid())
+  title       String
+  subject     String
+  description String
+  level       String
+  imageUrl    String?
+  published   Boolean @default(false)
+  videos      Video[]
+
+  @@index([subject])
+  @@index([level])
+}
+
+model Video {
+  id          String  @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  videoUrl    String
+  duration    Int     @default(0)
+  order       Int
+  course      Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, order])
+}
+
+model VirtualClass {
+  id           String         @id @default(cuid())
+  teacherId    String
+  subject      String
+  scheduledAt  DateTime
+  duration     Int            @default(60)
+  hourlyRate   Float
+  status       ClassStatus    @default(SCHEDULED)
+  dailyRoomUrl String?
+  maxStudents  Int            @default(1)
+  teacher      TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  bookings     ClassBooking[]
+
+  @@index([teacherId])
+  @@index([scheduledAt])
+}
+
+enum ClassStatus {
+  SCHEDULED
+  STARTED
+  COMPLETED
+  CANCELLED
+}
+
+model ClassBooking {
+  id            String         @id @default(cuid())
+  classId       String
+  studentId     String
+  paymentId     String?
+  paymentStatus PaymentStatus  @default(PENDING)
+  createdAt     DateTime       @default(now())
+  class         VirtualClass   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Subscription {
+  id            String             @id @default(cuid())
+  userId        String
+  plan          SubscriptionPlan
+  price         Float
+  startsAt      DateTime           @default(now())
+  endsAt        DateTime
+  status        SubscriptionStatus @default(ACTIVE)
+  mercadoPagoId String?
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([endsAt])
+}
+
+enum SubscriptionPlan {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
